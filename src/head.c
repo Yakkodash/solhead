@@ -29,7 +29,7 @@ static void usage() {
 }
 
 static void print_newline() {
-    write(STDERR_FILENO, "\n", 1);
+    write(STDOUT_FILENO, "\n", 1);
 }
 
 static int error(const char *str, int err) {
@@ -46,6 +46,7 @@ static void print_sep(char *filename) {
     write(STDOUT_FILENO, filename, strlen(filename));
     write(STDOUT_FILENO, " <==\n", 5);
 }
+
 int main (int argc, char **argv) {
 	int cnt = DEFAULT_NUMBER, fd, ch;
     int index;
@@ -53,10 +54,12 @@ int main (int argc, char **argv) {
     while ((ch = getopt(argc, argv, "n:")) != -1)
         switch(ch) {
         case 'n':
-            if(optarg == NULL || atoi(optarg) < 0) {
+            if(optarg == NULL) {
                 return error(optarg, errno);
             }
-            
+            if (atoi(optarg) < 0) {
+                return error(optarg, EINVAL);
+            }
             cnt = atoi(optarg);
             break;
         case '?':
@@ -74,14 +77,9 @@ int main (int argc, char **argv) {
         }
 
         if(print_headers) {
-            if(first) {
-                print_sep(argv[index]);
-                first=0;
-            } else {
-                print_newline();
-                print_sep(argv[index]);
-            }
+            print_sep(argv[index]);
         }
+
         head (fd, cnt);
         close (fd);
     }
