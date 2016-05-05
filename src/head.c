@@ -8,12 +8,10 @@
 #define DEFAULT_NUMBER 10
 #define USAGE_STRING "usage: head [-n #] [filename...]\n"
 
-#define SEP ": "
-
 static int error(const char *str, int err) {
     char *errstr = strerror(err);
     write(STDERR_FILENO, str, strlen(str));
-    write(STDERR_FILENO, SEP, sizeof SEP);
+    write(STDERR_FILENO, ": ", 2);
     write(STDERR_FILENO, errstr, strlen(errstr));
     write(STDERR_FILENO, "\n", 1);
     return err;
@@ -23,9 +21,10 @@ static void head(int filde, int cnt) {
     int BUFSIZE = sysconf(_SC_PAGESIZE);
 	char buffer[BUFSIZE];
 	off_t nread;
-    off_t i;
+    int i;
 
 	while (cnt && (nread = read(filde, buffer, BUFSIZE)) != NULL ) {
+
         if (nread < 0) {
             error("head", errno);
             break;
@@ -42,6 +41,7 @@ static void head(int filde, int cnt) {
 
 static void usage() {
     write(STDERR_FILENO, USAGE_STRING, sizeof USAGE_STRING);
+    exit(EXIT_FAILURE);
 }
 
 static void print_sep(char *filename) {
@@ -62,13 +62,11 @@ int main (int argc, char **argv) {
             if (*ep || cnt <= 0) {
                 error(optarg, EINVAL);
                 usage();
-                return EXIT_FAILURE;
             }
             break;
         case '?':
         default:
             usage();
-            return EXIT_FAILURE;
     }
 
     if((argc - optind) > 1) print_headers = 1;
@@ -78,8 +76,7 @@ int main (int argc, char **argv) {
 
     if (*argv) {
         for (first = 1; *argv; ++argv) {
-
-            if((fd = open(*argv, O_RDONLY | O_LARGEFILE))==-1) {
+            if ((fd = open(*argv, O_RDONLY | O_LARGEFILE))==-1) {
                 error(*argv, errno);
                 exitval = EXIT_FAILURE;
                 continue;
