@@ -3,34 +3,12 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <ctype.h>
 #include <string.h>
 
 #define DEFAULT_NUMBER 10
-#define USAGE_STRING "usage: head [-n#] [-#] [filename...]\n"
+#define USAGE_STRING "usage: head [-n #] [filename...]\n"
 
-#define NEWLINE 0x0A
 #define SEP ": "
-
-static void head(int filde, int cnt) {
-	char *buffer;
-	size_t nread;
-
-	while (cnt && (nread = read(filde, buffer, sizeof(char))) != NULL ) {
-		write(STDOUT_FILENO, buffer, nread);
-		if(*buffer == NEWLINE) {
-			cnt--;
-		}
-	}
-}
-
-static void usage() {
-    write(STDERR_FILENO, USAGE_STRING, sizeof USAGE_STRING);
-}
-
-static void print_newline() {
-    write(STDOUT_FILENO, "\n", 1);
-}
 
 static int error(const char *str, int err) {
     char *errstr = strerror(err);
@@ -41,6 +19,31 @@ static int error(const char *str, int err) {
     return err;
 }
 
+static void head(int filde, int cnt) {
+    int BUFSIZE = sysconf(_SC_PAGESIZE);
+	char buffer[BUFSIZE];
+	off_t nread;
+    off_t i;
+
+	while (cnt && (nread = read(filde, buffer, BUFSIZE)) != NULL ) {
+        if (nread < 0) {
+            error("head", errno);
+            break;
+        }
+        
+        for (i = 0; i < nread; ++i) {
+            if(!cnt) break;
+            if (buffer[i] == '\n') cnt--;
+        }
+        
+        write (STDOUT_FILENO, buffer, i);
+	}
+}
+
+static void usage() {
+    write(STDERR_FILENO, USAGE_STRING, sizeof USAGE_STRING);
+}
+
 static void print_sep(char *filename) {
     write(STDOUT_FILENO, "==> ", 4);
     write(STDOUT_FILENO, filename, strlen(filename));
@@ -48,40 +51,54 @@ static void print_sep(char *filename) {
 }
 
 int main (int argc, char **argv) {
-	int cnt = DEFAULT_NUMBER, fd, ch;
-    int index;
-    int first = 1, print_headers = 0;
+	int cnt = DEFAULT_NUMBER, fd = 0, ch, exitval = EXIT_SUCCESS;
+    int first, print_headers = 0;
+    char *ep;
+
     while ((ch = getopt(argc, argv, "n:")) != -1)
         switch(ch) {
-        case 'n':
-            if(optarg == NULL) {
-                return error(optarg, errno);
+        case 'n':        
+            cnt = strtol(optarg, &ep, 10);
+            if (*ep || cnt <= 0) {
+                error(optarg, EINVAL);
+                usage();
+                return EXIT_FAILURE;
             }
-            if (atoi(optarg) < 0) {
-                return error(optarg, EINVAL);
-            }
-            cnt = atoi(optarg);
             break;
         case '?':
         default:
             usage();
-            return 1;
+            return EXIT_FAILURE;
     }
 
     if((argc - optind) > 1) print_headers = 1;
 
-    for (index = optind; index < argc; index++) {
-        fd = open(argv[index], O_RDONLY);
-        if(fd == -1) {
-            return error(argv[index], errno);
-        }
+    argv += optind;
+    argc -= optind;
 
-        if(print_headers) {
-            print_sep(argv[index]);
-        }
+    if (*argv) {
+        for (first = 1; *argv; ++argv) {
 
-        head (fd, cnt);
-        close (fd);
+            if((fd = open(*argv, O_RDONLY | O_LARGEFILE))==-1) {
+                error(*argv, errno);
+                exitval = EXIT_FAILURE;
+                continue;
+            } else if (print_headers) { 
+                if (!first) write(STDOUT_FILENO, "\n", 1); 
+                print_sep(*argv);
+            }
+            first = 0;
+
+            head (fd, cnt);
+            if (close(fd)) {
+                error("head", errno);
+                exitval = EXIT_FAILURE;
+                continue; 
+            }
+        }
+    } else {
+        head(STDIN_FILENO, cnt);
     }
-	return 0;
+	return exitval;
 }
+
