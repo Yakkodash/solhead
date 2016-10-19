@@ -1,6 +1,6 @@
 TARGET   = head
 CC       = gcc
-CFLAGS   = -std=gnu99 -Werror
+CFLAGS   = -std=gnu99 -Werror -Wall -Wextra 
 LINKER   = gcc -o
 LFLAGS   = -Wall
 SRCDIR   = src
